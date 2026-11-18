@@ -23,6 +23,16 @@ npm run dev        # máy tính: http://localhost:5173
 npm run dev:ipad   # HTTPS tự ký trên mạng LAN, mở địa chỉ "Network" bằng Safari trên iPad
 ```
 
+### Dùng trên iPad qua GitHub Pages
+
+Bản build sẵn nằm trong `docs/`. Vào **Settings → Pages** của repo, chọn *Deploy from a branch*, chọn
+nhánh chứa code và thư mục `/docs`, bấm Save. Sau khoảng một phút, mở
+`https://<chủ-repo>.github.io/datts/` bằng Safari trên iPad rồi "Thêm vào Màn hình chính".
+Sau mỗi lần sửa code, chạy `npm run build:pages` và commit lại `docs/`. Trang Pages là công khai với
+ai có đường dẫn; bản thu và khoá API vẫn chỉ nằm trên iPad của bạn.
+
+### Chạy từ máy tính trong mạng LAN
+
 Safari chỉ cho dùng micro trên HTTPS. Với `dev:ipad`, Safari sẽ cảnh báo chứng chỉ tự ký — chọn
 "Hiện chi tiết → truy cập trang web". Để dùng lâu dài, `npm run build` rồi đưa thư mục `dist/` lên bất
 kỳ dịch vụ host tĩnh có HTTPS nào, sau đó "Thêm vào Màn hình chính" trên iPad.
@@ -52,6 +62,12 @@ của thiết bị (thường 48 kHz), tự cắt im lặng hai đầu và chừ
   Máy chủ cần bật CORS và chạy HTTPS. Repo chưa kèm máy chủ mẫu.
 
 Khoá API lưu trong localStorage của thiết bị. Chỉ clone giọng của chính bạn hoặc người đã đồng ý.
+
+## Giao diện
+
+Thiết kế theo hướng dẫn của bộ skill [Uizze](https://github.com/uizze/uizze): một hướng riêng cho sản
+phẩm ("bàn thu băng từ" — màu phẳng, viền mực, phím lún, đèn mức theo thang dB), font đóng gói kèm có
+đủ dấu tiếng Việt (Bricolage Grotesque, Be Vietnam Pro, JetBrains Mono).
 
 ## Kiểm thử
 

@@ -40,7 +40,7 @@ export default function RecordView() {
         hold = Math.max(p, hold * 0.92);
         const el = meter.current; if (!el) return;
         const db = hold > 1e-5 ? 20 * Math.log10(hold) : -100;
-        el.style.width = `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
+        el.style.clipPath = `inset(0 ${100 - Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}% 0 0)`;
         el.dataset.zone = db > -1 ? 'clip' : db > -6 ? 'hot' : 'ok';
       };
       await r.start(deviceId || undefined);
@@ -156,20 +156,24 @@ export default function RecordView() {
 
         <article className={`prompt ${status === 'recording' ? 'live' : ''}`}>
           <div className="prompt-meta">
-            <span>Câu {Math.min(idx, lesson.items.length - 1) + 1}/{lesson.items.length}</span>
+            <span className="cue">{status === 'recording' ? 'Đang thu' : 'Câu'} {Math.min(idx, lesson.items.length - 1) + 1}/{lesson.items.length}</span>
             {item.hint && <span className="hint">{item.hint}</span>}
           </div>
           <p className={`script ${plain(item.text).length > 160 ? 'long' : ''}`}><Marked text={item.text} /></p>
         </article>
 
-        <div className="meter" title="Mức âm lượng vào"><div ref={meter} /><i style={{ left: '80%' }} /><i style={{ left: '90%' }} /></div>
+        <div className="meter" role="img" aria-label="Mức âm lượng vào, thang dB">
+          <div className="leds"><div ref={meter} /></div>
+          <div className="scale" aria-hidden>{[-60, -48, -36, -24, -12, -6, 0].map(d => <span key={d} style={{ left: `${((d + 60) / 60) * 100}%` }}>{d}</span>)}</div>
+        </div>
 
         <div className="transport">
-          <button className="ghost big" onClick={() => go(-1)} disabled={idx === 0 || status === 'recording'}>‹ Trước</button>
+          <button className="key" onClick={() => go(-1)} disabled={idx === 0 || status === 'recording'} aria-label="Câu trước">◀<small>Trước</small></button>
           <button className={`rec ${status}`} onClick={toggle} disabled={status === 'opening'} data-testid="rec">
-            {status === 'off' ? 'Bật micro' : status === 'opening' ? 'Đang mở…' : status === 'recording' ? `Dừng · ${elapsed.toFixed(1)}s` : itemTakes.length ? 'Thu lại' : 'Thu'}
+            <i aria-hidden />
+            {status === 'off' ? 'Bật micro' : status === 'opening' ? 'Đang mở…' : status === 'recording' ? `Dừng ${elapsed.toFixed(1)}s` : itemTakes.length ? 'Thu lại' : 'Thu'}
           </button>
-          <button className="ghost big" onClick={() => go(1)} disabled={idx >= lesson.items.length - 1 || status === 'recording'}>Sau ›</button>
+          <button className="key" onClick={() => go(1)} disabled={idx >= lesson.items.length - 1 || status === 'recording'} aria-label="Câu sau">▶<small>Sau</small></button>
         </div>
 
         <div className="micbar dim">
