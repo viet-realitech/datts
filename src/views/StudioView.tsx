@@ -15,6 +15,7 @@ const SLIDERS: { key: keyof SynthSettings; label: string; min: number; max: numb
   { key: 'style', label: 'Cường điệu', min: 0, max: 1, tip: 'Tăng để nhấn nhá mạnh hơn; để 0 cho thuyết minh.' },
   { key: 'speed', label: 'Tốc độ', min: 0.7, max: 1.2, tip: 'Thuyết minh 0,9–1,0; quảng cáo 1,05–1,1.' },
 ];
+const TEMP = { key: 'temperature' as const, label: 'Ngẫu hứng', min: 0.3, max: 1.2, tip: 'Thấp: đều, an toàn. Cao: sinh động hơn nhưng dễ đọc lạc.' };
 
 export default function StudioView({ goLab }: { goLab: () => void }) {
   const { takes, voices, cfg, setCfg } = useStore();
@@ -33,7 +34,8 @@ export default function StudioView({ goLab }: { goLab: () => void }) {
     </main>
   );
   const set = (settings: SynthSettings) => setCfg({ ...cfg, recipe: { ...recipe, settings } });
-  const chunks = chunkText(text);
+  // Máy chủ riêng đọc chậm hơn và đường hầm cắt kết nối sau ~100 giây, nên chia đoạn ngắn hơn.
+  const chunks = chunkText(text, voice.engine === 'custom' ? 240 : 700);
 
   const run = async () => {
     setError(''); setOut(undefined);
@@ -62,10 +64,10 @@ export default function StudioView({ goLab }: { goLab: () => void }) {
         <p><b>{voice.name}</b> <span className="dim">· {recipe.model} · bắt đầu từ kiểu “{presetLabel(recipe.preset)}”</span></p>
         {(
           <div className="sliders">
-            {SLIDERS.filter(s => voice.engine === 'elevenlabs' || s.key === 'speed').map(s => (
+            {(voice.engine === 'elevenlabs' ? SLIDERS : [SLIDERS[3], TEMP]).map(s => (
               <label key={s.key} title={s.tip}>
-                <span>{s.label} <b>{recipe.settings[s.key].toFixed(2)}</b></span>
-                <input type="range" min={s.min} max={s.max} step={0.05} value={recipe.settings[s.key]} onChange={e => set({ ...recipe.settings, [s.key]: Number(e.target.value) })} />
+                <span>{s.label} <b>{(recipe.settings[s.key] ?? 0.8).toFixed(2)}</b></span>
+                <input type="range" min={s.min} max={s.max} step={0.05} value={recipe.settings[s.key] ?? 0.8} onChange={e => set({ ...recipe.settings, [s.key]: Number(e.target.value) })} />
                 <small className="dim">{s.tip}</small>
               </label>
             ))}

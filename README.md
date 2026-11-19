@@ -3,8 +3,8 @@
 Web app chạy trên iPad để thu giọng của chính bạn (qua DJI Mic Mini), luyện từng bước, rồi thử nhiều
 mẫu giọng clone cho tới khi ra giọng đọc tốt cho thuyết minh và podcast.
 
-Toàn bộ bản thu nằm trên thiết bị (IndexedDB). Không có máy chủ riêng của app; trình duyệt gọi thẳng
-engine clone giọng mà bạn cấu hình.
+Toàn bộ bản thu nằm trên thiết bị (IndexedDB). Trình duyệt gọi thẳng engine clone giọng mà bạn cấu
+hình: máy chủ mã nguồn mở tự chạy, hoặc ElevenLabs.
 
 ## Bốn màn hình
 
@@ -45,23 +45,45 @@ của thiết bị (thường 48 kHz), tự cắt im lặng hai đầu và chừ
 
 ## Engine
 
-- **ElevenLabs** (mặc định): clone nhanh từ 1–3 phút bản thu, đọc thử, và soát lời đọc bằng Scribe.
-  Danh sách model lấy từ tài khoản; model có tiếng Việt được chọn sẵn.
-- **Máy chủ riêng** (tuỳ chọn) cho model mã nguồn mở tự chạy (F5-TTS, viXTTS, GPT-SoVITS…). App gọi:
+### Mã nguồn mở — VieNeu-TTS v3 Turbo (mặc định, miễn phí)
 
-  ```
-  POST {địa chỉ}/synthesize        multipart/form-data
-    text       văn bản cần đọc
-    ref_text   lời của các bản thu mẫu, nối bằng dấu cách
-    ref_audio  một hoặc nhiều file WAV mẫu
-    speed      số thực, 1 là bình thường
-    model      "default"
-  → 200, thân là âm thanh (audio/wav hoặc audio/mpeg)
-  ```
+`public/server/datts_server.py` là một máy chủ nhỏ bọc [VieNeu-TTS](https://github.com/pnnbao97/VieNeu-TTS)
+(Apache-2.0, 48 kHz, chạy được trên CPU). Model clone giọng từ **một mẫu 4–8 giây** và bắt chước luôn ngữ
+điệu của mẫu, nên trong tab Thử mẫu mỗi bản thu được dùng như một "giọng" riêng để so.
 
-  Máy chủ cần bật CORS và chạy HTTPS. Repo chưa kèm máy chủ mẫu.
+Chạy trên Google Colab (mở được ngay từ iPad) — dán vào một ô rồi bấm ▶:
 
-Khoá API lưu trong localStorage của thiết bị. Chỉ clone giọng của chính bạn hoặc người đã đồng ý.
+```
+!pip -q install vieneu fastapi uvicorn python-multipart
+!wget -q -O datts_server.py https://viet-realitech.github.io/datts/server/datts_server.py
+!python datts_server.py --tunnel
+```
+
+Hoặc trên máy Mac/PC/Linux có Python ≥ 3.10: `pip install vieneu fastapi uvicorn python-multipart` rồi
+`python public/server/datts_server.py --tunnel` (macOS cần `brew install cloudflared` trước).
+
+Máy chủ in ra một địa chỉ `https://….trycloudflare.com`; dán vào Datts → Dữ liệu → Địa chỉ máy chủ riêng
+rồi bấm "Kiểm tra kết nối". Địa chỉ đổi mỗi lần chạy lại, và ai có địa chỉ đều gọi được máy chủ trong lúc
+nó chạy.
+
+API của máy chủ (để thay bằng model khác nếu muốn):
+
+```
+GET  {địa chỉ}/health        → {"ok": true, "engine": "..."}
+POST {địa chỉ}/synthesize    multipart/form-data
+  text         văn bản cần đọc
+  ref_audio    một hoặc nhiều file WAV mẫu (ghép lại, tối đa 8 giây)
+  speed        0.6–1.5, 1 là bình thường (đổi bằng ffmpeg, giữ cao độ)
+  temperature  0.2–1.3, mặc định 0.8
+  denoise      true/false, mặc định false
+→ 200, audio/wav 48 kHz
+```
+
+### ElevenLabs (trả phí)
+
+Clone giọng cần gói Starter trở lên. Gói miễn phí vẫn dùng được để soát lời đọc bằng Scribe.
+
+Chỉ clone giọng của chính bạn hoặc người đã đồng ý.
 
 ## Giao diện
 
@@ -74,6 +96,7 @@ phẩm ("bàn thu băng từ" — màu phẳng, viền mực, phím lún, đèn 
 ```bash
 npm test                        # chấm bản thu, WAV, so khớp văn bản
 npm run build && npm run e2e    # chạy trọn luồng trong Chromium, micro giả + ElevenLabs giả lập
+SERVER=http://localhost:8000 node e2e/oss.mjs   # app gọi datts_server.py thật đang chạy
 ```
 
 ## Sửa giáo trình

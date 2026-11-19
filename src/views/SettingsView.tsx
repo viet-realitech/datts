@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { clearAll } from '../lib/db';
+import { checkServer } from '../lib/engines/custom';
 import { buildDataset, download } from '../lib/export';
 import { useStore } from '../store';
 import { errMsg, fmtSec } from '../ui';
@@ -10,6 +11,9 @@ export default function SettingsView() {
   const [persisted, setPersisted] = useState<boolean>();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [server, setServer] = useState<{ ok: boolean; text: string }>();
+  const [copied, setCopied] = useState(false);
+  const colab = `!pip -q install vieneu fastapi uvicorn python-multipart\n!wget -q -O datts_server.py ${new URL('server/datts_server.py', location.href).href}\n!python datts_server.py --tunnel`;
   const kept = takes.filter(t => t.kept);
   const sec = (l: typeof takes) => l.reduce((s, t) => s + t.metrics.duration, 0);
   const total = lessons.reduce((n, l) => n + l.items.length, 0);
@@ -40,15 +44,36 @@ export default function SettingsView() {
       </section>
 
       <section className="card">
-        <h2>Engine clone giọng</h2>
+        <h2>Engine mã nguồn mở (miễn phí)</h2>
+        <p className="dim">Chạy model VieNeu-TTS trên Google Colab hoặc máy của bạn, rồi dán địa chỉ nó in ra vào đây.</p>
+        <ol className="guide">
+          <li>Mở <a href="https://colab.research.google.com/#create=true" target="_blank" rel="noreferrer">colab.research.google.com</a>, tạo sổ tay mới.</li>
+          <li>Dán ba dòng dưới vào ô đầu tiên rồi bấm ▶. Lần đầu mất vài phút để cài và tải model.</li>
+          <li>Khi hiện khung “DÁN ĐỊA CHỈ NÀY…”, chép địa chỉ <code>https://….trycloudflare.com</code> vào ô bên dưới. Giữ tab Colab mở trong lúc dùng.</li>
+        </ol>
+        <pre className="code">{colab}</pre>
+        <div className="row">
+          <button className="ghost" onClick={async () => { try { await navigator.clipboard.writeText(colab); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { setMsg('Không chép tự động được — hãy bôi đen ba dòng rồi chép tay.'); } }}>{copied ? '✓ Đã chép' : 'Chép ba dòng'}</button>
+        </div>
+        <label>Địa chỉ máy chủ riêng
+          <input type="url" value={cfg.customUrl} onChange={e => { setServer(undefined); setCfg({ ...cfg, customUrl: e.target.value.trim() }); }} placeholder="https://….trycloudflare.com" />
+        </label>
+        <div className="row wrap">
+          <button className="primary" disabled={!cfg.customUrl} onClick={async () => {
+            setServer({ ok: true, text: 'Đang gọi…' });
+            try { setServer({ ok: true, text: `✓ Đã nối với ${await checkServer(cfg.customUrl)}` }); }
+            catch { setServer({ ok: false, text: 'Không nối được. Kiểm tra Colab còn chạy và địa chỉ chép đủ, bắt đầu bằng https://' }); }
+          }}>Kiểm tra kết nối</button>
+          {server && <span className={server.ok ? 'badge' : 'warn'} role="status">{server.text}</span>}
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>ElevenLabs (trả phí)</h2>
         <label>Khoá API ElevenLabs
           <input type="password" autoComplete="off" value={cfg.elevenKey} onChange={e => setCfg({ ...cfg, elevenKey: e.target.value.trim() })} placeholder="sk_…" />
         </label>
-        <p className="dim">Dùng để tạo giọng, đọc thử và kiểm tra lời đọc. Khoá chỉ lưu trên thiết bị này và gửi thẳng tới api.elevenlabs.io.</p>
-        <label>Máy chủ riêng (tuỳ chọn)
-          <input type="url" value={cfg.customUrl} onChange={e => setCfg({ ...cfg, customUrl: e.target.value.trim() })} placeholder="https://may-cua-toi:8000" />
-        </label>
-        <p className="dim">Cho model mã nguồn mở tự chạy (F5-TTS, viXTTS…). Xem hợp đồng API trong README.</p>
+        <p className="dim">Clone giọng cần gói Starter trở lên; gói miễn phí vẫn dùng được để kiểm tra lời đọc. Khoá chỉ lưu trên thiết bị này.</p>
       </section>
 
       <section className="card">
