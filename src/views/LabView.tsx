@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { TEST_TEXTS } from '../lib/curriculum';
 import { del, put, uid, type Take, type Trial, type Voice } from '../lib/db';
 import { availableEngines, getEngine } from '../lib/engines';
-import { PRESETS, type Clip, type EngineId, type Model } from '../lib/engines/types';
+import { presetLabel, presetsFor, type Clip, type EngineId, type Model } from '../lib/engines/types';
 import { plain } from '../lib/text';
 import { useStore } from '../store';
 import { errMsg, fmtSec, Player, Stars } from '../ui';
@@ -67,6 +67,14 @@ function VoiceMaker({ kept, engines }: { kept: Take[]; engines: EngineId[] }) {
     } catch (e) { setError(errMsg(e)); }
     setBusy(false);
   };
+  /** Model mã nguồn mở chỉ nghe ~10 giây mẫu, nên mỗi bản thu là một "giọng" đáng thử riêng. */
+  const createEach = async () => {
+    setBusy(true);
+    for (const t of kept.filter(t => sel.has(t.id)))
+      await put('voices', { id: uid(), name: plain(t.text).split(' ').slice(0, 5).join(' ') + '…', engine, takeIds: [t.id], denoise: false, seconds: t.metrics.duration, createdAt: Date.now() });
+    await refresh();
+    setSel(new Set()); setOpen(false); setBusy(false);
+  };
   const remove = async (v: Voice) => {
     if (!confirm(`Xoá giọng "${v.name}"? Giọng trên máy chủ cũng bị xoá; các mẫu đã tạo vẫn giữ.`)) return;
     try { if (v.remoteId) await getEngine(v.engine, cfg).deleteVoice(v.remoteId); } catch (e) { setError(`Chưa xoá được trên máy chủ: ${errMsg(e)}`); }
@@ -93,11 +101,12 @@ function VoiceMaker({ kept, engines }: { kept: Take[]; engines: EngineId[] }) {
           <div className="row wrap">
             <label>Tên giọng<input value={name} onChange={e => setName(e.target.value)} placeholder="VD: Pha trộn 2 phút" /></label>
             {engines.length > 1 && <label>Engine<select value={engine} onChange={e => setEngine(e.target.value as EngineId)}>{engines.map(e => <option key={e} value={e}>{ENGINE_LABEL[e]}</option>)}</select></label>}
-            <div className="row">
-              {[60, 120, 180].map(s => <button key={s} className="ghost" onClick={() => setSel(new Set(autoPick(takes, s)))}>Tự chọn ~{s / 60} phút</button>)}
+            <div className="row wrap">
+              {engine === 'elevenlabs' && [60, 120, 180].map(s => <button key={s} className="ghost" onClick={() => setSel(new Set(autoPick(takes, s)))}>Tự chọn ~{s / 60} phút</button>)}
               <button className="ghost" onClick={() => setSel(new Set())}>Bỏ chọn</button>
             </div>
           </div>
+          {engine === 'custom' && <p className="sample">Model mã nguồn mở chỉ nghe khoảng 5–12 giây mẫu và bắt chước luôn ngữ điệu của mẫu đó. Hãy tick vài câu khác kiểu nhau (kể chậm, podcast tươi, nhấn nhá…) rồi bấm “Mỗi bản thu một giọng” để so xem câu nào cho giọng hay nhất.</p>}
           <div className="picker">
             {kept.map(t => (
               <label key={t.id} className={sel.has(t.id) ? 'on' : ''}>
@@ -108,10 +117,13 @@ function VoiceMaker({ kept, engines }: { kept: Take[]; engines: EngineId[] }) {
               </label>
             ))}
           </div>
-          <label className="row"><input type="checkbox" checked={denoise} onChange={e => setDenoise(e.target.checked)} /> Khử ồn nền trên máy chủ (chỉ bật khi phòng thu ồn — bản thu sạch mà bật sẽ kém đi)</label>
-          <div className="row end">
-            <span className={seconds < 30 ? 'warn' : 'dim'}>Đã chọn {sel.size} bản · {fmtSec(seconds)}{seconds < 30 ? ' — nên có ít nhất 1 phút' : seconds > 200 ? ' — quá 3 phút thường không tốt hơn' : ''}</span>
-            <button className="primary" disabled={busy || sel.size === 0} onClick={create}>{busy ? 'Đang tạo…' : 'Tạo giọng'}</button>
+          {engine === 'elevenlabs' && <label className="row"><input type="checkbox" checked={denoise} onChange={e => setDenoise(e.target.checked)} /> Khử ồn nền trên máy chủ (chỉ bật khi phòng thu ồn — bản thu sạch mà bật sẽ kém đi)</label>}
+          <div className="row end wrap">
+            {engine === 'elevenlabs'
+              ? <span className={seconds < 30 ? 'warn' : 'dim'}>Đã chọn {sel.size} bản · {fmtSec(seconds)}{seconds < 30 ? ' — nên có ít nhất 1 phút' : seconds > 200 ? ' — quá 3 phút thường không tốt hơn' : ''}</span>
+              : <span className={seconds > 15 ? 'warn' : 'dim'}>Đã chọn {sel.size} bản · {fmtSec(seconds)}{seconds > 15 ? ' — gộp chung thì chỉ ~12 giây đầu được dùng' : ''}</span>}
+            {engine === 'custom' && <button className="primary" disabled={busy || sel.size === 0} onClick={createEach}>Mỗi bản thu một giọng ({sel.size})</button>}
+            <button className={engine === 'custom' ? 'ghost' : 'primary'} disabled={busy || sel.size === 0} onClick={create}>{busy ? 'Đang tạo…' : engine === 'custom' ? 'Gộp thành một giọng' : 'Tạo giọng'}</button>
           </div>
         </div>
       ))}
@@ -136,7 +148,7 @@ function TrialMaker() {
   const [vs, setVs] = useState<Set<string>>(new Set(voices.slice(-1).map(v => v.id)));
   const [models, setModels] = useState<Record<string, Model[]>>({});
   const [ms, setMs] = useState<Set<string>>(new Set());
-  const [ps, setPs] = useState<Set<string>>(new Set(['thuyet-minh', 'podcast']));
+  const [ps, setPs] = useState<Set<string>>(new Set(['thuyet-minh', 'podcast', 'thuong']));
   const [textId, setTextId] = useState(TEST_TEXTS[0].id);
   const [own, setOwn] = useState('');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -160,7 +172,7 @@ function TrialMaker() {
 
   const text = textId === 'own' ? own.trim() : TEST_TEXTS.find(t => t.id === textId)!.text;
   const jobs = chosen.flatMap(v => (models[v.engine] ?? []).filter(m => ms.has(`${v.engine}:${m.id}`)).flatMap(m =>
-    (v.engine === 'custom' ? PRESETS.slice(0, 1) : PRESETS.filter(p => ps.has(p.id))).map(p => ({ v, m, p }))));
+    presetsFor(v.engine).filter(p => ps.has(p.id)).map(p => ({ v, m, p }))));
 
   const run = async () => {
     setErrors([]); setProgress({ done: 0, total: jobs.length });
@@ -169,7 +181,7 @@ function TrialMaker() {
       const { v, m, p } = jobs[i];
       try {
         const blob = await getEngine(v.engine, cfg).synthesize({ remoteId: v.remoteId, clips: clipsOf(v, takes), text, model: m.id, settings: p.settings });
-        const t: Trial = { id: uid(), voiceId: v.id, voiceName: v.name, engine: v.engine, model: m.id, preset: v.engine === 'custom' ? 'mac-dinh' : p.id, settings: p.settings, textId, text, blob, createdAt: Date.now(), rating: 0, note: '' };
+        const t: Trial = { id: uid(), voiceId: v.id, voiceName: v.name, engine: v.engine, model: m.id, preset: p.id, settings: p.settings, textId, text, blob, createdAt: Date.now(), rating: 0, note: '' };
         await put('trials', t);
       } catch (e) { errs.push(`${v.name} · ${m.name} · ${p.label}: ${errMsg(e)}`); }
       setProgress({ done: i + 1, total: jobs.length });
@@ -187,7 +199,7 @@ function TrialMaker() {
       <h4>Model</h4>
       <Chips options={Object.entries(models).flatMap(([e, l]) => l.map(m => ({ id: `${e}:${m.id}`, label: m.name + (m.vi ? '' : ' (không có tiếng Việt)') })))} value={ms} onChange={setMs} />
       <h4>Kiểu đọc</h4>
-      <Chips options={PRESETS.map(p => ({ id: p.id, label: p.label }))} value={ps} onChange={setPs} />
+      <Chips options={[...new Set(chosen.map(v => v.engine))].flatMap(e => presetsFor(e)).map(p => ({ id: p.id, label: p.label }))} value={ps} onChange={setPs} />
       <h4>Đoạn thử</h4>
       <div className="chipset">
         {[...TEST_TEXTS.map(t => ({ id: t.id, label: t.label })), { id: 'own', label: 'Tự nhập' }].map(t => (
@@ -204,7 +216,6 @@ function TrialMaker() {
   );
 }
 
-const presetLabel = (id: string) => PRESETS.find(p => p.id === id)?.label ?? 'Mặc định';
 const hash = (s: string) => { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
 
 function Compare({ onUse }: { onUse: (t: Trial) => void }) {

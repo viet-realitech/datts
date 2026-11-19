@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getEngine } from '../lib/engines';
-import { PRESETS, type SynthSettings } from '../lib/engines/types';
+import { presetLabel, type SynthSettings } from '../lib/engines/types';
 import { download } from '../lib/export';
 import { decodeToMono } from '../lib/recorder';
 import { chunkText } from '../lib/text';
@@ -59,10 +59,10 @@ export default function StudioView({ goLab }: { goLab: () => void }) {
     <main className="pad lab">
       <section className="card">
         <h2>Công thức đang dùng</h2>
-        <p><b>{voice.name}</b> <span className="dim">· {recipe.model} · bắt đầu từ kiểu “{PRESETS.find(p => p.id === recipe.preset)?.label ?? 'Mặc định'}”</span></p>
-        {voice.engine === 'elevenlabs' && (
+        <p><b>{voice.name}</b> <span className="dim">· {recipe.model} · bắt đầu từ kiểu “{presetLabel(recipe.preset)}”</span></p>
+        {(
           <div className="sliders">
-            {SLIDERS.map(s => (
+            {SLIDERS.filter(s => voice.engine === 'elevenlabs' || s.key === 'speed').map(s => (
               <label key={s.key} title={s.tip}>
                 <span>{s.label} <b>{recipe.settings[s.key].toFixed(2)}</b></span>
                 <input type="range" min={s.min} max={s.max} step={0.05} value={recipe.settings[s.key]} onChange={e => set({ ...recipe.settings, [s.key]: Number(e.target.value) })} />

@@ -23,6 +23,15 @@ export const PRESETS: { id: string; label: string; settings: SynthSettings }[] =
   { id: 'on-dinh', label: 'Ổn định tối đa', settings: { stability: 0.85, similarity: 0.9, style: 0, speed: 0.95 } },
 ];
 
+/** Model mã nguồn mở bắt chước ngữ điệu của bản thu mẫu, nên chỉ còn tốc độ là chỉnh được. */
+export const CUSTOM_PRESETS: typeof PRESETS = [
+  { id: 'cham', label: 'Chậm rãi (0,9×)', settings: { stability: 0.5, similarity: 0.75, style: 0, speed: 0.9 } },
+  { id: 'thuong', label: 'Tốc độ thường', settings: { stability: 0.5, similarity: 0.75, style: 0, speed: 1 } },
+  { id: 'nhanh', label: 'Nhanh gọn (1,1×)', settings: { stability: 0.5, similarity: 0.75, style: 0, speed: 1.1 } },
+];
+export const presetsFor = (e: EngineId) => (e === 'custom' ? CUSTOM_PRESETS : PRESETS);
+export const presetLabel = (id: string) => [...PRESETS, ...CUSTOM_PRESETS].find(p => p.id === id)?.label ?? 'Mặc định';
+
 export async function httpError(res: Response): Promise<Error> {
   let msg = `${res.status} ${res.statusText}`;
   try {
