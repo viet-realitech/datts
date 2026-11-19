@@ -52,12 +52,13 @@ export async function keepTake(takes: Take[], take: Take): Promise<void> {
 
 // Cấu hình nhỏ (khoá API, micro, công thức đang dùng) để ở localStorage trên chính thiết bị này.
 export interface Config {
-  elevenKey: string; customUrl: string; deviceId: string;
+  elevenKey: string; customUrl: string; deviceId: string; claudeKey: string;
   recipe?: { voiceId: string; model: string; preset: string; settings: SynthSettings };
 }
 const KEY = 'datts.config';
 export function loadConfig(): Config {
-  try { return { elevenKey: '', customUrl: '', deviceId: '', ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
-  catch { return { elevenKey: '', customUrl: '', deviceId: '' }; }
+  const empty: Config = { elevenKey: '', customUrl: '', deviceId: '', claudeKey: '' };
+  try { return { ...empty, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
+  catch { return empty; }
 }
 export function saveConfig(c: Config) { try { localStorage.setItem(KEY, JSON.stringify(c)); } catch { /* chế độ riêng tư */ } }

@@ -3,12 +3,14 @@ import { useStore } from './store';
 import RecordView from './views/RecordView';
 import LabView from './views/LabView';
 import StudioView from './views/StudioView';
+import PodcastView from './views/PodcastView';
 import SettingsView from './views/SettingsView';
 
 const TABS = [
   { id: 'record', label: 'Thu âm' },
   { id: 'lab', label: 'Thử mẫu' },
   { id: 'studio', label: 'Studio' },
+  { id: 'podcast', label: 'Podcast' },
   { id: 'settings', label: 'Dữ liệu' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
@@ -30,6 +32,7 @@ export default function App() {
         : tab === 'record' ? <RecordView />
         : tab === 'lab' ? <LabView goStudio={() => setTab('studio')} goSettings={() => setTab('settings')} />
         : tab === 'studio' ? <StudioView goLab={() => setTab('lab')} />
+        : tab === 'podcast' ? <PodcastView goLab={() => setTab('lab')} goSettings={() => setTab('settings')} />
         : <SettingsView />}
     </div>
   );

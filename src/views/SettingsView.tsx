@@ -69,6 +69,14 @@ export default function SettingsView() {
       </section>
 
       <section className="card">
+        <h2>AI viết kịch bản (Claude)</h2>
+        <label>Khoá API Claude
+          <input type="password" autoComplete="off" value={cfg.claudeKey} onChange={e => setCfg({ ...cfg, claudeKey: e.target.value.trim() })} placeholder="sk-ant-…" />
+        </label>
+        <p className="dim">Dùng cho tab Podcast: Claude soạn kịch bản từ chủ đề hoặc tư liệu của bạn. Lấy khoá ở <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noreferrer">platform.claude.com</a>; tính phí theo lượng dùng. Khoá chỉ lưu trên thiết bị này và gửi thẳng tới Anthropic. Không có khoá vẫn dựng được tập từ kịch bản dán sẵn.</p>
+      </section>
+
+      <section className="card">
         <h2>ElevenLabs (trả phí)</h2>
         <label>Khoá API ElevenLabs
           <input type="password" autoComplete="off" value={cfg.elevenKey} onChange={e => setCfg({ ...cfg, elevenKey: e.target.value.trim() })} placeholder="sk_…" />

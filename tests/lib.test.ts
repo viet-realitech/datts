@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { analyze } from '../src/lib/analyze';
 import { chunkText, compare, countSyllables, plain, splitSentences } from '../src/lib/text';
 import { concatFloat32, encodeWav, trimSilence } from '../src/lib/wav';
+import { referenceFor, scriptFromText, STYLES } from '../src/lib/podcast';
+import { LESSONS } from '../src/lib/curriculum';
+import { TRAIN_LESSONS } from '../src/lib/corpus';
+import type { Take } from '../src/lib/db';
 
 const SR = 48000;
 /** Im lặng (nhiễu nền) – giọng giả (sin) – im lặng. */
@@ -77,5 +81,24 @@ describe('text', () => {
     const chunks = chunkText('A một. B hai. C ba.\n\nĐoạn hai.', 11);
     expect(chunks).toEqual(['A một.', 'B hai.', 'C ba.', 'Đoạn hai.']);
     expect(chunkText('A một. B hai.', 100)).toEqual(['A một. B hai.']);
+  });
+});
+
+describe('podcast', () => {
+  it('chia kịch bản dán sẵn thành đoạn và đoán ngữ điệu', () => {
+    const segs = scriptFromText('Xin chào các bạn. Hôm nay mình kể một chuyện.\n\nBạn có tin không? Thật bất ngờ! Mình thì tin. Và mình sẽ nói vì sao.\n\nHẹn gặp lại tuần sau.');
+    expect(segs.map(s => s.style)).toEqual(['chao', 'hoi', 'cam-than', 'ke', 'ket']);
+    expect(segs.map(s => s.newPara)).toEqual([false, true, false, false, true]);
+    expect(segs[3].text).toBe('Mình thì tin. Và mình sẽ nói vì sao.');
+  });
+  it('mọi câu mẫu ngữ điệu đều có thật trong giáo trình', () => {
+    const ids = new Set([...LESSONS, ...TRAIN_LESSONS].flatMap(l => l.items.map(i => i.id)));
+    for (const s of STYLES) for (const id of s.items) expect(ids.has(id), `${s.id}: ${id}`).toBe(true);
+  });
+  it('chọn bản thu mẫu theo ngữ điệu, bỏ qua bản quá dài hoặc chưa chọn', () => {
+    const take = (itemId: string, duration: number, kept = true) => ({ itemId, kept, metrics: { duration, score: 90 } }) as unknown as Take;
+    const takes = [take('ctx-1-2', 12), take('train-5-1', 5), take('ctx-2-1', 4, false)];
+    expect(referenceFor('hoi', takes)?.itemId).toBe('train-5-1');
+    expect(referenceFor('chao', takes)).toBeUndefined();
   });
 });

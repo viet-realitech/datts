@@ -1,19 +1,20 @@
 # Datts — luyện giọng riêng bằng AI
 
-Web app chạy trên iPad để thu giọng của chính bạn (qua DJI Mic Mini), luyện từng bước, rồi thử nhiều
-mẫu giọng clone cho tới khi ra giọng đọc tốt cho thuyết minh và podcast.
+Web app chạy trên iPad để thu giọng của chính bạn (qua DJI Mic Mini), luyện từng bước, train một model
+riêng trên giọng đó, rồi tự dựng thuyết minh và podcast bằng giọng của bạn.
 
 Toàn bộ bản thu nằm trên thiết bị (IndexedDB). Trình duyệt gọi thẳng engine clone giọng mà bạn cấu
 hình: máy chủ mã nguồn mở tự chạy, hoặc ElevenLabs.
 
-## Bốn màn hình
+## Năm màn hình
 
 | Tab | Việc làm |
 | --- | --- |
-| **Thu âm** | Giáo trình 5 bước: câu văn → ngữ cảnh → nhấn nhá → full bài → bài của tôi (dán kịch bản riêng). Mỗi bản thu được chấm kỹ thuật (vỡ tiếng, mức giọng, nền ồn, cắt sát, tốc độ đọc) và, nếu có khoá ElevenLabs, được nhận dạng lại để soát chữ đọc sai. |
-| **Thử mẫu** | Tạo nhiều "giọng" từ các nhóm bản thu khác nhau, sinh mẫu theo lưới giọng × model × kiểu đọc trên cùng một đoạn văn, nghe mù, chấm sao, xem bảng xếp hạng. |
-| **Studio** | Lấy công thức thắng cuộc, tinh chỉnh 4 thông số, đọc cả bài dài và tải WAV. |
-| **Dữ liệu** | Khoá API, tiến độ, xuất bộ dữ liệu zip kiểu LJSpeech (`wavs/` + `metadata.csv`) để fine-tune model riêng. |
+| **Thu âm** | Giáo trình 6 bước: câu văn → ngữ cảnh → nhấn nhá → full bài → bài của tôi → luyện model (240 câu để train). Mỗi bản thu được chấm kỹ thuật (vỡ tiếng, mức giọng, nền ồn, cắt sát, tốc độ đọc). |
+| **Thử mẫu** | Train model riêng trên giọng bạn, tạo giọng clone nhanh từ từng bản thu, sinh mẫu theo lưới giọng × kiểu đọc, nghe mù, chấm sao, xếp hạng. |
+| **Studio** | Lấy công thức thắng cuộc, tinh chỉnh, đọc cả bài dài và tải WAV. |
+| **Podcast** | Claude viết kịch bản từ chủ đề hoặc tư liệu, chia đoạn và gắn ngữ điệu; app đọc từng đoạn bằng giọng bạn rồi ghép thành một tập. |
+| **Dữ liệu** | Cài đặt máy chủ và khoá API, tiến độ, xuất bộ dữ liệu zip kiểu LJSpeech. |
 
 ## Chạy
 
@@ -54,12 +55,14 @@ của thiết bị (thường 48 kHz), tự cắt im lặng hai đầu và chừ
 Chạy trên Google Colab (mở được ngay từ iPad) — dán vào một ô rồi bấm ▶:
 
 ```
-!pip -q install vieneu fastapi uvicorn python-multipart
+from google.colab import drive; drive.mount('/content/drive')
+!pip -q install vieneu peft fastapi uvicorn python-multipart
 !wget -q -O datts_server.py https://viet-realitech.github.io/datts/server/datts_server.py
-!python datts_server.py --tunnel
+!python datts_server.py --tunnel --data-dir /content/drive/MyDrive/datts
 ```
 
-Hoặc trên máy Mac/PC/Linux có Python ≥ 3.10: `pip install vieneu fastapi uvicorn python-multipart` rồi
+Hoặc trên máy Mac/PC/Linux có Python ≥ 3.10: `pip install vieneu fastapi uvicorn python-multipart`
+(thêm `torch transformers peft accelerate pyarrow safetensors` nếu muốn train) rồi
 `python public/server/datts_server.py --tunnel` (macOS cần `brew install cloudflared` trước).
 
 Máy chủ in ra một địa chỉ `https://….trycloudflare.com`; dán vào Datts → Dữ liệu → Địa chỉ máy chủ riêng
@@ -79,6 +82,30 @@ POST {địa chỉ}/synthesize    multipart/form-data
 → 200, audio/wav 48 kHz
 ```
 
+### Train model riêng
+
+Clone nhanh chỉ nghe vài giây mẫu. Để giọng bám sát hơn, tab Thử mẫu gửi các bản thu dài 3–15 giây lên
+máy chủ và train một LoRA trên VieNeu-TTS v3 Turbo (theo `finetune/` của repo VieNeu-TTS, ghim ở một
+commit đã thử). Nên có 100–300 câu, 10–30 phút. Train chạy được trên CPU; bật GPU T4 trong Colab thì nhanh
+hơn. Thêm `--data-dir` (trên Colab: một thư mục Google Drive) để giữ bộ dữ liệu và model qua các lần chạy.
+Máy chủ giữ một model đã train tại một thời điểm.
+
+```
+POST   {địa chỉ}/dataset/clip    multipart: name, text, file (WAV)
+DELETE {địa chỉ}/dataset
+POST   {địa chỉ}/train           form: epochs (mặc định 3), rank (mặc định 16)
+GET    {địa chỉ}/train/status    → state, step, total, eval_loss, log
+POST   {địa chỉ}/synthesize      thêm voice=finetuned để đọc bằng model đã train
+```
+
+### Podcast
+
+Tab Podcast gọi Claude (`claude-opus-5-5`) thẳng từ trình duyệt bằng khoá API của bạn, lưu trên thiết bị.
+Kịch bản trả về theo cấu trúc: mỗi đoạn một ngữ điệu (chào, kể, hỏi, ngạc nhiên, tâm tình, nghiêm túc,
+kết). Khi đọc bằng giọng clone nhanh, mỗi đoạn lấy bản thu cùng ngữ điệu của chính bạn làm mẫu
+(`src/lib/podcast.ts` liệt kê câu nào ứng với ngữ điệu nào), nên tập nghe có lên xuống. Không có khoá
+Claude vẫn dán kịch bản sẵn rồi dựng tập được.
+
 ### ElevenLabs (trả phí)
 
 Clone giọng cần gói Starter trở lên. Gói miễn phí vẫn dùng được để soát lời đọc bằng Scribe.
@@ -96,7 +123,9 @@ phẩm ("bàn thu băng từ" — màu phẳng, viền mực, phím lún, đèn 
 ```bash
 npm test                        # chấm bản thu, WAV, so khớp văn bản
 npm run build && npm run e2e    # chạy trọn luồng trong Chromium, micro giả + ElevenLabs giả lập
-SERVER=http://localhost:8000 node e2e/oss.mjs   # app gọi datts_server.py thật đang chạy
+SERVER=http://localhost:8000 node e2e/oss.mjs       # app gọi datts_server.py thật đang chạy
+SERVER=http://localhost:8000 node e2e/train.mjs     # train thật (chạy máy chủ với DATTS_MIN_CLIPS=3)
+SERVER=http://localhost:8000 node e2e/podcast.mjs   # tab Podcast, Claude giả lập + máy chủ thật
 ```
 
 ## Sửa giáo trình
