@@ -160,6 +160,9 @@ mark { background: var(--hi); color: #14161c; padding: .02em .18em; border-radiu
 .bar > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar i { height: 12px; border: 2px solid var(--line); border-radius: 3px; background: var(--hi); justify-self: start; } .bar b { font-family: var(--mono); }
 
+.bar.big { grid-template-columns: auto 1fr auto auto; font-size: 1rem; margin: 12px 0 6px; } .bar.big i { height: 16px; }
+.train-status { border: 2px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-top: 14px; } .train-status.error { border-color: var(--bad); } .train-status.done { border-color: var(--good); }
+.train-status .bar { grid-template-columns: 1fr; } .train-status .bar i { min-width: 8px; } .mono { font: 500 .75rem var(--mono); overflow-wrap: anywhere; }
 .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-top: 14px; }
 .sliders span { display: flex; justify-content: space-between; color: var(--text); } .sliders b { font-family: var(--mono); }
 .sliders input { width: 100%; accent-color: var(--sel); height: 34px; } .sliders small { text-transform: none; letter-spacing: 0; font: 400 .82rem var(--body); }

@@ -3,7 +3,7 @@ export interface SynthSettings { stability: number; similarity: number; style: n
 export interface Clip { name: string; blob: Blob; text: string }
 export interface Model { id: string; name: string; vi: boolean }
 export interface SynthRequest {
-  remoteId?: string; clips: Clip[]; text: string; model: string; settings: SynthSettings;
+  remoteId?: string; clips: Clip[]; finetuned?: boolean; text: string; model: string; settings: SynthSettings;
   previousText?: string; nextText?: string;
 }
 export interface Engine {

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TEST_TEXTS } from '../lib/curriculum';
 import { del, put, uid, type Take, type Trial, type Voice } from '../lib/db';
 import { availableEngines, getEngine } from '../lib/engines';
+import { clearDataset, serverHealth, startTrain, trainStatus, uploadClip, type ServerHealth, type TrainStatus } from '../lib/engines/custom';
 import { presetLabel, presetsFor, type Clip, type EngineId, type Model } from '../lib/engines/types';
 import { plain } from '../lib/text';
 import { useStore } from '../store';
@@ -36,6 +37,7 @@ export default function LabView({ goStudio, goSettings }: { goStudio: () => void
   );
   return (
     <main className="pad lab">
+      {cfg.customUrl && <TrainCard kept={kept} />}
       <VoiceMaker kept={kept} engines={engines} />
       {voices.length > 0 && <TrialMaker />}
       {trials.length > 0 && <Compare onUse={t => { setCfg({ ...cfg, recipe: { voiceId: t.voiceId, model: t.model, preset: t.preset, settings: t.settings } }); goStudio(); }} />}
@@ -91,7 +93,7 @@ function VoiceMaker({ kept, engines }: { kept: Take[]; engines: EngineId[] }) {
       {voices.length > 0 && (
         <ul className="voices">
           {voices.map(v => (
-            <li key={v.id}><b>{v.name}</b><span className="dim">{ENGINE_LABEL[v.engine]} · {v.takeIds.length} bản thu · {fmtSec(v.seconds)}{v.denoise ? ' · khử ồn' : ''}</span>
+            <li key={v.id}><b>{v.name}</b><span className="dim">{v.finetuned ? 'Model đã train trên giọng bạn' : `${ENGINE_LABEL[v.engine]} · ${v.takeIds.length} bản thu · ${fmtSec(v.seconds)}${v.denoise ? ' · khử ồn' : ''}`}</span>
               <button className="ghost danger" onClick={() => remove(v)}>Xoá</button></li>
           ))}
         </ul>
@@ -127,6 +129,107 @@ function VoiceMaker({ kept, engines }: { kept: Take[]; engines: EngineId[] }) {
           </div>
         </div>
       ))}
+      {error && <p className="error" role="alert">{error}</p>}
+    </section>
+  );
+}
+
+const BUSY: TrainStatus['state'][] = ['preparing', 'training', 'packaging'];
+const STATE_LABEL: Record<TrainStatus['state'], string> = { idle: '', preparing: 'Đang chuẩn bị dữ liệu', training: 'Đang train', packaging: 'Đang đóng gói giọng', done: 'Đã train xong', error: 'Train bị lỗi' };
+const TARGET_SEC = 20 * 60;
+
+/** Train một model riêng trên giọng người dùng: gửi bản thu lên máy chủ, theo dõi tiến độ, rồi tạo "giọng đã train". */
+function TrainCard({ kept }: { kept: Take[] }) {
+  const { voices, cfg, refresh } = useStore();
+  const url = cfg.customUrl;
+  const [health, setHealth] = useState<ServerHealth>();
+  const [status, setStatus] = useState<TrainStatus>();
+  const [sent, setSent] = useState<{ done: number; total: number }>();
+  const [epochs, setEpochs] = useState(3);
+  const [error, setError] = useState('');
+  const pending = useRef(false);   // phiên train do chính màn hình này khởi động (hoặc đang chạy dở khi mở lại)
+  // Model chỉ học từ câu dài 3–15 giây, thu sạch và đọc đúng chữ.
+  const usable = useMemo(() => kept.filter(t => t.metrics.duration >= 3 && t.metrics.duration <= 15 && t.metrics.score >= 55 && (t.match ?? 1) >= 0.8), [kept]);
+  const seconds = usable.reduce((s, t) => s + t.metrics.duration, 0);
+  const min = health?.min_clips ?? 20;
+  const hasVoice = voices.some(v => v.finetuned);
+
+  const adopt = useCallback(async (label: string) => {
+    for (const v of voices.filter(v => v.finetuned)) await del('voices', v.id);   // máy chủ chỉ giữ một model, giọng cũ không còn đúng
+    await put('voices', { id: uid(), name: label, engine: 'custom', takeIds: [], denoise: false, seconds: 0, createdAt: Date.now(), finetuned: true });
+    await refresh();
+  }, [voices, refresh]);
+
+  useEffect(() => {
+    let alive = true;
+    serverHealth(url).then(h => { if (!alive) return; setHealth(h); setStatus(h.train); if (h.train && BUSY.includes(h.train.state)) pending.current = true; })
+      .catch(() => { if (alive) setHealth(undefined); });
+    return () => { alive = false; };
+  }, [url]);
+
+  const busy = !!status && BUSY.includes(status.state);
+  useEffect(() => {
+    if (!busy) return;
+    const t = setInterval(async () => {
+      try {
+        const s = await trainStatus(url);
+        setStatus(s);
+        if (s.state === 'done' && pending.current) { pending.current = false; await adopt(`Model riêng · ${new Date().toLocaleDateString('vi')}`); }
+      } catch { /* mất mạng tạm thời: thử lại ở nhịp sau */ }
+    }, 4000);
+    return () => clearInterval(t);
+  }, [busy, url, adopt]);
+
+  const run = async () => {
+    setError('');
+    try {
+      await clearDataset(url);
+      for (let i = 0; i < usable.length; i++) {
+        setSent({ done: i, total: usable.length });
+        await uploadClip(url, usable[i].itemId, plain(usable[i].text), usable[i].blob);
+      }
+      setSent(undefined);
+      pending.current = true;
+      setStatus(await startTrain(url, epochs));
+    } catch (e) { setSent(undefined); setError(errMsg(e)); }
+  };
+
+  return (
+    <section className="card">
+      <h2>Train model riêng</h2>
+      <p className="dim">Clone nhanh chỉ nghe vài giây mẫu. Train thì dạy hẳn model trên toàn bộ bản thu của bạn, nên giọng bám sát hơn và học luôn cách bạn đọc. Thu các bài ở mục “Luyện model” trong tab Thu âm để có đủ dữ liệu.</p>
+      <div className="bar big"><span>{usable.length} câu dùng được · {fmtSec(seconds)}</span><i style={{ width: `${Math.min(100, (seconds / TARGET_SEC) * 100)}%` }} /><b>{Math.round((seconds / TARGET_SEC) * 100)}%</b><span className="dim">của 20 phút</span></div>
+      <p className={usable.length < 100 ? 'warn' : 'dim'}>
+        {usable.length < min ? `Cần ít nhất ${min} câu dài 3–15 giây mới train được.`
+          : usable.length < 100 ? 'Train được rồi, nhưng dưới 100 câu thì model dễ học vẹt. Mốc nên đạt: 100–300 câu, 10–30 phút.'
+          : 'Đủ dữ liệu để train tử tế.'}
+      </p>
+      {!health ? <p className="warnbox">Chưa nối được máy chủ riêng. Chạy lại Colab và cập nhật địa chỉ trong tab Dữ liệu.</p>
+        : !health.can_train ? <p className="warnbox">Máy chủ này thiếu PyTorch nên chưa train được. Dùng đúng mấy dòng lệnh mới nhất trong tab Dữ liệu.</p>
+        : (
+          <div className="row wrap">
+            <label className="row">Số vòng train
+              <select value={epochs} onChange={e => setEpochs(Number(e.target.value))} disabled={busy || !!sent}>
+                <option value={3}>3 — chuẩn</option><option value={6}>6 — bám giọng hơn</option><option value={10}>10 — bám nhất, dễ học vẹt</option>
+              </select>
+            </label>
+            <button className="primary" disabled={busy || !!sent || usable.length < min} onClick={run}>
+              {sent ? `Đang gửi ${sent.done}/${sent.total}…` : busy ? 'Đang train…' : `Gửi ${usable.length} câu và train`}
+            </button>
+            <span className="dim">{health.gpu ? 'Máy chủ có GPU' : 'Máy chủ chạy CPU — vẫn train được, chậm hơn'}</span>
+          </div>
+        )}
+      {status && status.state !== 'idle' && (
+        <div className={`train-status ${status.state}`} role="status">
+          <b>{STATE_LABEL[status.state]}{status.state === 'training' && status.total ? ` · bước ${status.step}/${status.total}` : ''}</b>
+          {status.eval_loss != null && <span className="dim"> · sai số kiểm tra {status.eval_loss.toFixed(3)} (càng thấp càng tốt; hết giảm là nên dừng)</span>}
+          {status.state === 'training' && <div className="bar"><i style={{ width: `${status.total ? (status.step / status.total) * 100 : 3}%` }} /></div>}
+          {status.state === 'error' && <pre className="code">{status.message}</pre>}
+          {busy && status.log.length > 0 && <p className="dim mono">{status.log[status.log.length - 1]}</p>}
+        </div>
+      )}
+      {health?.finetuned && !busy && !hasVoice && <div className="row"><button className="ghost" onClick={() => adopt('Model riêng')}>Dùng model đã train sẵn trên máy chủ</button></div>}
+      {hasVoice && !busy && <p className="badge">✓ Giọng đã train nằm trong danh sách bên dưới — tạo mẫu thử để so với clone nhanh.</p>}
       {error && <p className="error" role="alert">{error}</p>}
     </section>
   );
@@ -180,7 +283,7 @@ function TrialMaker() {
     for (let i = 0; i < jobs.length; i++) {
       const { v, m, p } = jobs[i];
       try {
-        const blob = await getEngine(v.engine, cfg).synthesize({ remoteId: v.remoteId, clips: clipsOf(v, takes), text, model: m.id, settings: p.settings });
+        const blob = await getEngine(v.engine, cfg).synthesize({ remoteId: v.remoteId, clips: clipsOf(v, takes), finetuned: v.finetuned, text, model: m.id, settings: p.settings });
         const t: Trial = { id: uid(), voiceId: v.id, voiceName: v.name, engine: v.engine, model: m.id, preset: p.id, settings: p.settings, textId, text, blob, createdAt: Date.now(), rating: 0, note: '' };
         await put('trials', t);
       } catch (e) { errs.push(`${v.name} · ${m.name} · ${p.label}: ${errMsg(e)}`); }

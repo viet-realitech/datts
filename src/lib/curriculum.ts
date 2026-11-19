@@ -1,7 +1,7 @@
 export interface Item { id: string; text: string; hint?: string }
 export interface Lesson { id: string; stage: number; title: string; goal: string; items: Item[]; custom?: boolean }
 
-export const STAGES = ['Câu văn', 'Ngữ cảnh', 'Nhấn nhá', 'Full bài', 'Bài của tôi'];
+export const STAGES = ['Câu văn', 'Ngữ cảnh', 'Nhấn nhá', 'Full bài', 'Bài của tôi', 'Luyện model'];
 
 const mk = (lessonId: string, rows: (string | [string, string])[]): Item[] =>
   rows.map((r, i) => (typeof r === 'string' ? { id: `${lessonId}-${i + 1}`, text: r } : { id: `${lessonId}-${i + 1}`, text: r[0], hint: r[1] }));

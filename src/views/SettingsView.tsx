@@ -13,7 +13,7 @@ export default function SettingsView() {
   const [msg, setMsg] = useState('');
   const [server, setServer] = useState<{ ok: boolean; text: string }>();
   const [copied, setCopied] = useState(false);
-  const colab = `!pip -q install vieneu fastapi uvicorn python-multipart\n!wget -q -O datts_server.py ${new URL('server/datts_server.py', location.href).href}\n!python datts_server.py --tunnel`;
+  const colab = `from google.colab import drive; drive.mount('/content/drive')\n!pip -q install vieneu peft fastapi uvicorn python-multipart\n!wget -q -O datts_server.py ${new URL('server/datts_server.py', location.href).href}\n!python datts_server.py --tunnel --data-dir /content/drive/MyDrive/datts`;
   const kept = takes.filter(t => t.kept);
   const sec = (l: typeof takes) => l.reduce((s, t) => s + t.metrics.duration, 0);
   const total = lessons.reduce((n, l) => n + l.items.length, 0);
@@ -48,12 +48,12 @@ export default function SettingsView() {
         <p className="dim">Chạy model VieNeu-TTS trên Google Colab hoặc máy của bạn, rồi dán địa chỉ nó in ra vào đây.</p>
         <ol className="guide">
           <li>Mở <a href="https://colab.research.google.com/#create=true" target="_blank" rel="noreferrer">colab.research.google.com</a>, tạo sổ tay mới.</li>
-          <li>Dán ba dòng dưới vào ô đầu tiên rồi bấm ▶. Lần đầu mất vài phút để cài và tải model.</li>
+          <li>Dán bốn dòng dưới vào ô đầu tiên rồi bấm ▶, cho phép nối Google Drive khi được hỏi (để giữ model đã train). Lần đầu mất vài phút. Muốn train nhanh hơn: Runtime → Change runtime type → T4 GPU trước khi chạy.</li>
           <li>Khi hiện khung “DÁN ĐỊA CHỈ NÀY…”, chép địa chỉ <code>https://….trycloudflare.com</code> vào ô bên dưới. Giữ tab Colab mở trong lúc dùng.</li>
         </ol>
         <pre className="code">{colab}</pre>
         <div className="row">
-          <button className="ghost" onClick={async () => { try { await navigator.clipboard.writeText(colab); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { setMsg('Không chép tự động được — hãy bôi đen ba dòng rồi chép tay.'); } }}>{copied ? '✓ Đã chép' : 'Chép ba dòng'}</button>
+          <button className="ghost" onClick={async () => { try { await navigator.clipboard.writeText(colab); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { setMsg('Không chép tự động được — hãy bôi đen bốn dòng rồi chép tay.'); } }}>{copied ? '✓ Đã chép' : 'Chép bốn dòng'}</button>
         </div>
         <label>Địa chỉ máy chủ riêng
           <input type="url" value={cfg.customUrl} onChange={e => { setServer(undefined); setCfg({ ...cfg, customUrl: e.target.value.trim() }); }} placeholder="https://….trycloudflare.com" />

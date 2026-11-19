@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { all, loadConfig, saveConfig, type Config, type Take, type Trial, type Voice } from './lib/db';
 import { LESSONS, type Lesson } from './lib/curriculum';
+import { TRAIN_LESSONS } from './lib/corpus';
 
 interface Store {
   ready: boolean; takes: Take[]; lessons: Lesson[]; voices: Voice[]; trials: Trial[];
@@ -18,7 +19,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => { void refresh(); }, [refresh]);
   const setCfg = useCallback((c: Config) => { saveConfig(c); setCfgState(c); }, []);
   const value = useMemo<Store>(() => ({
-    ready: data.ready, takes: data.takes, lessons: [...LESSONS, ...data.custom], voices: data.voices, trials: data.trials, cfg, setCfg, refresh,
+    ready: data.ready, takes: data.takes, lessons: [...LESSONS, ...data.custom, ...TRAIN_LESSONS], voices: data.voices, trials: data.trials, cfg, setCfg, refresh,
   }), [data, cfg, setCfg, refresh]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

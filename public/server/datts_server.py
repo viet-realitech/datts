@@ -36,7 +36,7 @@ MAX_TEXT = 5000
 VIENEU_REPO = "https://github.com/pnnbao97/VieNeu-TTS"
 VIENEU_COMMIT = "512de86"   # bản đã chạy thử với máy chủ này; mã train nằm trong repo chứ không có trong gói pip
 VOICE_NAME = "Giọng của tôi"
-MIN_CLIPS = 20
+MIN_CLIPS = int(os.environ.get("DATTS_MIN_CLIPS", "20"))
 DATA = Path(tempfile.mkdtemp(prefix="datts-data-"))   # main() đổi sang --data-dir nếu có
 
 app = FastAPI(title="Datts voice server")
@@ -53,7 +53,7 @@ _ref_dir = tempfile.mkdtemp(prefix="datts-ref-")
 
 def repo_dir() -> Path:
     """Mã nguồn VieNeu-TTS ở đúng bản đã thử (cần cho train và cho việc nạp model đã train)."""
-    d = DATA / "VieNeu-TTS"
+    d = Path(tempfile.gettempdir()) / f"datts-VieNeu-TTS-{VIENEU_COMMIT}"   # ngoài --data-dir: Google Drive chậm với nhiều file nhỏ
     if not (d / "finetune" / "train_lora.py").exists():
         print("Đang tải mã nguồn VieNeu-TTS…", flush=True)
         shutil.rmtree(d, ignore_errors=True)
@@ -162,7 +162,7 @@ def health():
     clips = load_index()
     return {
         "ok": True, "engine": "VieNeu-TTS v3 Turbo", "ready": _tts is not None, "max_ref_seconds": MAX_REF_SEC,
-        "gpu": has_gpu(), "can_train": has_torch(), "finetuned": finetuned_ready(),
+        "gpu": has_gpu(), "can_train": has_torch(), "finetuned": finetuned_ready(), "min_clips": MIN_CLIPS,
         "dataset": {"clips": len(clips), "seconds": round(sum(c["sec"] for c in clips.values()), 1)},
         "train": train_status(),
     }

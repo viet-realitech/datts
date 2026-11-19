@@ -46,7 +46,7 @@ export default function StudioView({ goLab }: { goLab: () => void }) {
       let rate = 44100;
       for (let i = 0; i < chunks.length; i++) {
         setProgress(`Đang đọc đoạn ${i + 1}/${chunks.length}…`);
-        const blob = await eng.synthesize({ remoteId: voice.remoteId, clips, text: chunks[i], model: recipe.model, settings: recipe.settings, previousText: chunks[i - 1], nextText: chunks[i + 1] });
+        const blob = await eng.synthesize({ remoteId: voice.remoteId, clips, finetuned: voice.finetuned, text: chunks[i], model: recipe.model, settings: recipe.settings, previousText: chunks[i - 1], nextText: chunks[i + 1] });
         const { samples, sampleRate } = await decodeToMono(blob);
         rate = sampleRate;
         if (i) parts.push(new Float32Array(Math.round(rate * 0.45)));   // nghỉ giữa các đoạn

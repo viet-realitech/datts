@@ -12,6 +12,7 @@ export interface Take {
 export interface Voice {
   id: string; name: string; engine: EngineId; takeIds: string[]; remoteId?: string;
   denoise: boolean; seconds: number; createdAt: number;
+  finetuned?: boolean;      // giọng từ model đã train trên máy chủ riêng, không cần bản thu mẫu
 }
 export interface Trial {
   id: string; voiceId: string; voiceName: string; engine: EngineId; model: string; preset: string;
